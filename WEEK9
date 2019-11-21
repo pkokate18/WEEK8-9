@@ -1,0 +1,75 @@
+library(readr)
+library(tidyverse)
+library(DESeq2)
+library(ggpubr)
+setwd("M:/mtucifs_home/week8")
+rm(list = ls()) # clearing the environment
+mycounts <- read_csv("WA_counts.csv")
+metadata <- read_csv("WA8_Metadata.csv")
+head(metadata)
+mycounts <- as.data.frame(mycounts)#convertin into a dataframe
+metadata <- as.data.frame(metadata)#convertin into a dataframe
+names(mycounts)[-1]==metadata$id  # checking that in information in the metadata and the mycounts tallies
+all(names(mycounts)[-1]==metadata$id) 
+dds.data <- DESeqDataSetFromMatrix(countData=mycounts, colData=metadata, design=~dex, tidy=TRUE)
+dds <- DESeq(dds.data)
+res <- results(dds, contrast=c("dex", "Control", "Mutant"), tidy=TRUE)
+res <- tbl_df(res)
+res2 <- arrange(res, padj)
+sig_genes<-filter(res2, padj<=0.05)
+res3 <- filter(res2, padj<=0.05 & log2FoldChange>=2)# genes with positive log2foldchange
+nrow(res3) #
+res4 <- filter(res2, padj<=0.05 & log2FoldChange<=-2) # genes with negative log2foldchange
+nrow(res4)
+Answer4<-arrange(res4,log2FoldChange)
+head(Answer4) # the first row is the most expressed gene in the mutant
+Answer5<-arrange(res3,log2FoldChange)
+tail(Answer5)# the last row is the most expressed gene in the control
+
+
+
+res3<-mutate(res3,experiment="CONTROL")# adding a variable to identify +logfoldchange as "CONTROL"
+res4<-mutate(res4,experiment="MUTANT")# adding a variable to identify -logfoldchange as "mutant"
+res3.3 <- rbind(res4,res3)#combining the significantly diff.expressed genes 
+res3.3<-as.data.frame(res3.3)
+
+ggplot(res3.3) +
+  geom_point(aes(x=log2FoldChange, y=-log10(padj),colour= experiment))+
+  scale_color_manual(values = c("blue", "red")) +
+  ggtitle("Differential Gene Expression") +
+  xlab("log2 fold change") + 
+  ylab("-log10 adjusted p-value") +
+  #scale_y_continuous(limits = c(0,50)) +
+  theme(legend.position = "none",
+        plot.title = element_text(size = rel(1.5), hjust = 0.5),
+        axis.title = element_text(size = rel(1.25)))  +
+  theme_bw() # only the two fold change ones
+
+plotCounts(dds, gene="Solyc09g089500.2.1", intgroup="dex", returnData=TRUE) %>%
+  ggplot(aes(dex,count))+
+  geom_boxplot(aes(fill=dex))+
+  scale_y_log10() + 
+  ggtitle("Solyc09g089500.2.1") #Answer 2..highest positive fold change
+
+plotCounts(dds, gene="Solyc11g028040.1.1", intgroup="dex", returnData=TRUE) %>%
+  ggplot(aes(dex,count))+
+  geom_boxplot(aes(fill=dex))+
+  scale_y_log10() + 
+  ggtitle("Solyc11g028040.1.1") #Answer 2..highest negative fold change
+
+res_sig_ANSWER4<-mutate(res3.3,log10BASEMEAN=log10(baseMean)) # adding a column that is log10 of the basemean expression
+res_sig_ANSWER4<-arrange(res_sig_ANSWER4, log10BASEMEAN)
+
+
+ggmaplot(res_sig_ANSWER4,
+         fdr = 0.05, fc = 2, size = 0.4,
+         palette = c("#B31B21", "#1465AC", "darkgray"),
+         genenames = as.vector(res_sig_ANSWER4$row),
+         detection_call = NULL,
+         legend = "top", top = 20,
+         font.label = c("bold", 6),
+         font.legend = "bold",
+         font.main = "bold",  xlab = "Log10 mean expression",
+         ylab = "Log2 fold change", 
+         ggtheme = ggplot2::theme_classic()) # creating MA plot
+
